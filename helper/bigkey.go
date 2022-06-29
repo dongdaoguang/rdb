@@ -35,11 +35,23 @@ func (h *redisTreeSet) Append(x model.RedisObject) {
 		min := h.GetMin()
 		if min.GetSize() < x.GetSize() {
 			h.set.Remove(min)
-			fmt.Printf("remove setSize=%d setCapacity=%d\n", h.set.Size(), h.capacity)
+			h.set.Add(x)
 		}
+	} else {
+		h.set.Add(x)
 	}
-	h.set.Add(x)
 	fmt.Printf("setSize=%d setCapacity=%d\n", h.set.Size(), h.capacity)
+
+
+	//if h.set.Size() >= h.capacity {
+	//	min := h.GetMin()
+	//	if min.GetSize() < x.GetSize() {
+	//		h.set.Remove(min)
+	//		fmt.Printf("remove setSize=%d setCapacity=%d\n", h.set.Size(), h.capacity)
+	//	}
+	//}
+	//h.set.Add(x)
+	//fmt.Printf("setSize=%d setCapacity=%d\n", h.set.Size(), h.capacity)
 }
 
 func (h *redisTreeSet) Dump() []model.RedisObject {
