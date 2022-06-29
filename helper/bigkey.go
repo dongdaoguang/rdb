@@ -38,7 +38,7 @@ func (h *redisTreeSet) Append(x model.RedisObject) {
 		}
 	}
 	h.set.Add(x)
-	fmt.Printf("setSize=%d setCapacity=%d", h.set.Size(), h.capacity)
+	fmt.Printf("setSize=%d setCapacity=%d\n", h.set.Size(), h.capacity)
 }
 
 func (h *redisTreeSet) Dump() []model.RedisObject {
