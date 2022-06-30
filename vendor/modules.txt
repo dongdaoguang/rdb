@@ -1,0 +1,12 @@
+# github.com/emirpasic/gods v1.18.1
+## explicit
+github.com/emirpasic/gods/containers
+github.com/emirpasic/gods/sets
+github.com/emirpasic/gods/sets/treeset
+github.com/emirpasic/gods/trees
+github.com/emirpasic/gods/trees/redblacktree
+github.com/emirpasic/gods/utils
+# github.com/garyburd/redigo v1.6.3
+## explicit
+github.com/garyburd/redigo/internal
+github.com/garyburd/redigo/redis

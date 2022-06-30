@@ -18,6 +18,8 @@ Options:
   -sep separator for flamegraph, rdb will separate key by it, default value is ":". 
 		supporting multi separators: -sep sep1 -sep sep2 
   -regex using regex expression filter keys
+  -redis, save result to redis, example: 192.168.89.12:6379
+  -a, redis auth
 
 Examples:
 parameters between '[' and ']' is optional
@@ -31,6 +33,8 @@ parameters between '[' and ']' is optional
   rdb -c bigkey [-o dump.aof] [-n 10] dump.rdb
 5. draw flamegraph
   rdb -c flamegraph [-port 16379] [-sep :] dump.rdb
+6. big key
+  rdb -c bigkey -n 10 dump.rdb -redis 192.168.89.12:6379 -a password
 `
 
 type separators []string
@@ -52,12 +56,16 @@ func main() {
 	var port int
 	var seps separators
 	var regexExpr string
+	var redis string
+	var a string
 	flagSet.StringVar(&cmd, "c", "", "command for rdb: json")
 	flagSet.StringVar(&output, "o", "", "output file path")
 	flagSet.IntVar(&n, "n", 0, "")
 	flagSet.IntVar(&port, "port", 0, "listen port for web")
 	flagSet.Var(&seps, "sep", "separator for flamegraph")
 	flagSet.StringVar(&regexExpr, "regex", "", "regex expression")
+	flagSet.StringVar(&redis, "redis", "", "save result to redis")
+	flagSet.StringVar(&a, "a", "", "redis auth")
 	_ = flagSet.Parse(os.Args[1:]) // ExitOnError
 	src := flagSet.Arg(0)
 
@@ -86,6 +94,8 @@ func main() {
 	case "bigkey":
 		if output == "" {
 			err = helper.FindBiggestKeys(src, n, os.Stdout, options...)
+		} else if redis != "" {
+			err = helper.FindBiggestKeysToRedis(src, n, os.Stdout, redis, a, options)
 		} else {
 			var outputFile *os.File
 			outputFile, err = os.Create(output)
