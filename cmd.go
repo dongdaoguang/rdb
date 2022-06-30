@@ -92,20 +92,22 @@ func main() {
 	case "aof":
 		err = helper.ToAOF(src, output, options)
 	case "bigkey":
-		if output == "" {
-			err = helper.FindBiggestKeys(src, n, os.Stdout, options...)
-		} else if redis != "" {
+		if redis != "" {
 			err = helper.FindBiggestKeysToRedis(src, n, os.Stdout, redis, a, options)
 		} else {
-			var outputFile *os.File
-			outputFile, err = os.Create(output)
-			if err != nil {
-				fmt.Printf("open output faild: %v", err)
+			if output == "" {
+				err = helper.FindBiggestKeys(src, n, os.Stdout, options...)
+			} else {
+				var outputFile *os.File
+				outputFile, err = os.Create(output)
+				if err != nil {
+					fmt.Printf("open output faild: %v", err)
+				}
+				defer func() {
+					_ = outputFile.Close()
+				}()
+				err = helper.FindBiggestKeys(src, n, outputFile, options...)
 			}
-			defer func() {
-				_ = outputFile.Close()
-			}()
-			err = helper.FindBiggestKeys(src, n, outputFile, options...)
 		}
 	case "flamegraph":
 		_, err = helper.FlameGraph(src, port, seps, options...)
