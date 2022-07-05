@@ -67,12 +67,14 @@ func (p *keyPrefixTreeSet) GetMin() *PrefixCounter {
 func (p *keyPrefixTreeSet) Append(x *PrefixCounter) {
 	// if heap is full && x.Size > minSize, then pop min
 	if p.set.Size() >= p.capacity {
+		fmt.Printf("rm set size:%d, cap:%d\n", p.set.Size(), p.capacity)
 		min := p.GetMin()
 		if min.GetSize() < x.GetSize() {
 			p.set.Remove(min)
 			p.set.Add(x)
 		}
 	} else {
+		fmt.Printf("add set size:%d, cap:%d\n", p.set.Size(), p.capacity)
 		p.set.Add(x)
 	}
 }
