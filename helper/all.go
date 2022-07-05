@@ -26,10 +26,6 @@ type PrefixCounter struct {
 	Count 			int64 `json:"count"`
 }
 
-func (p *PrefixCounter)GetSize() int64 {
-	return p.Size
-}
-
 type keyPrefixTreeSet struct {
 	set      *treeset.Set
 	capacity int
@@ -40,9 +36,9 @@ func newKeyPrefixHeap(cap int) *keyPrefixTreeSet {
 		o1 := a.(*PrefixCounter)
 		o2 := b.(*PrefixCounter)
 		switch {
-		case o2.GetSize() > o1.GetSize():
+		case o2.Size > o1.Size:
 			return 1
-		case o2.GetSize() > o1.GetSize():
+		case o2.Size < o1.Size:
 			return -1
 		default:
 			return 0
@@ -68,7 +64,7 @@ func (p *keyPrefixTreeSet) Append(x *PrefixCounter) {
 	// if heap is full && x.Size > minSize, then pop min
 	if p.set.Size() >= p.capacity {
 		min := p.GetMin()
-		if min.GetSize() < x.GetSize() {
+		if min.Size < x.Size {
 			p.set.Remove(min)
 			p.set.Add(x)
 			fmt.Printf("rm set size:%d, cap:%d\n", p.set.Size(), p.capacity)
@@ -211,7 +207,7 @@ func storeKeyPrefix(c *redis.Client, data map[string]*PrefixCounter, topN int) e
 
 	topList := newKeyPrefixHeap(topN)
 	for _, v := range data {
-		fmt.Printf("------prefix:%s\n totalSize:%d", v.Prefix, v.Size)
+		fmt.Printf("------prefix:%s totalSize:%d\n ", v.Prefix, v.Size)
 		topList.Append(v)
 	}
 
