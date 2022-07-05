@@ -125,6 +125,7 @@ func getKeyPrefix(subKey []string, sep string) string {
 func createKeyTypeCount(data map[string]int64, object model.RedisObject) {
 	keyType := object.GetType()
 	data[keyType] += 1
+	fmt.Printf("key:%s, ttl:%s\n", object.GetKey(), object.GetExpiration().String())
 }
 
 func storeKeyTypeCount(c *redis.Client, data map[string]int64) error {
