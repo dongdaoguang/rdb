@@ -122,7 +122,7 @@ func getKeyPrefix(subKey []string, sep string) string {
 	for i := 0; i < len(subKey) - 1; i++ {
 		prefix = prefix + subKey[i] + sep
 	}
-	strings.TrimRight(prefix, sep)
+	prefix = strings.TrimRight(prefix, sep)
 	return prefix
 }
 
@@ -209,18 +209,20 @@ func storeKeyPrefix(c *redis.Client, data map[string]*PrefixCounter, topN int) e
 
 	topList := newKeyPrefixHeap(topN)
 	for _, v := range data {
+		fmt.Printf("------prefix:%s\n", v.Prefix)
 		topList.Append(v)
 	}
 
 	iter := topList.set.Iterator()
 	for iter.Next() {
 		item := iter.Value().(*PrefixCounter)
+		item.ReadableSize = bytefmt.FormatSize(uint64(item.Size))
+		fmt.Printf("------toplist:%s\n", item.Prefix)
+
 		v, err := base_func.Any2String(item)
 		if err != nil {
 			return err
 		}
-
-		item.ReadableSize = bytefmt.FormatSize(uint64(item.Size))
 		err = c.Zadd(k, item.Size, v)
 		if err != nil {
 			return err
