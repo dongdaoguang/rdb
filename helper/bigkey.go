@@ -128,38 +128,12 @@ func FindBiggestKeys(rdbFilename string, topN int, output *os.File, options ...i
 	return nil
 }
 
-type FindBiggestKeysStatus struct {
-	Code int `json:"code"`
-	Msg string `json:"msg"`
-}
-
-type BigKey struct {
-	DbIndex int `json:"db_index"`
-	Key string `json:"key"`
-	Type string `json:"type"`
-	Size int `json:"size"`
-	ReadableSize string `json:"readable_size"`
-	ElementCount int `json:"element_count"`
-}
-
-type BiggestKeys struct {
-	Keys []*BigKey `json:"keys"`
-}
-
-func getStatusKeyName(addr string) string {
-	return addr + "_bk_status"
+func getBKStatusKeyName(addr string) string {
+	return "rdb_bk_status_" + addr
 }
 
 func getBigKeyName(addr string) string {
-	return addr + "_bk_data"
-}
-
-func storeStatusToRedis(c *redis.Client, status *FindBiggestKeysStatus) error {
-	v, err := base_func.Any2String(status)
-	if err != nil {
-		return err
-	}
-	return c.Set(getStatusKeyName(c.Addr), v)
+	return "rdb_bk_data_" + addr
 }
 
 func storeKeysToRedis(c *redis.Client, keys *BiggestKeys) error {
@@ -167,7 +141,7 @@ func storeKeysToRedis(c *redis.Client, keys *BiggestKeys) error {
 	if err != nil {
 		return err
 	}
-	return c.Set(getBigKeyName(c.Addr), v)
+	return c.Setex(getBigKeyName(c.Addr), v, 2592000) // ttl 30天
 }
 
 func FindBiggestKeysToRedis(rdbFilename string, topN int, output *os.File, addr, auth string, options ...interface{}) error {
@@ -179,7 +153,7 @@ func FindBiggestKeysToRedis(rdbFilename string, topN int, output *os.File, addr,
 		return errors.New(err.Error())
 	}
 
-	status := &FindBiggestKeysStatus{}
+	status := &RdbStatus{}
 	if rdbFilename == "" {
 		status.Code = -1
 		status.Msg = "src file path is required"

@@ -112,6 +112,8 @@ func main() {
 	case "flamegraph":
 		_, err = helper.FlameGraph(src, port, seps, options...)
 		<-make(chan struct{})
+	case "all":
+		err = helper.CreateAll(src, n, seps, redis, a, options)
 	default:
 		println("unknown command")
 		return

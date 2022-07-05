@@ -271,14 +271,6 @@ func (c *Client)DoCmd_Map(cmd string)(map[string]string, error)  {
 	return ret,nil
 }
 
-func (c *Client) Del(key string) error {
-	_, err := redigo.Int(c.Do("DEL", key))
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 var ErrClosedPool = errors.New("use of closed redis pool")
 
 type Pool struct {
@@ -499,7 +491,26 @@ func (c *Client) Set(k, v string) error {
 	return nil
 }
 
+func (c *Client) Setex(k, v string, ttl int) error {
+	if _, err := c.Do("SET", k, v, "EX", ttl); err != nil {
+		return err
+	}
+	return nil
+}
 
+func (c *Client) Zadd(k string, score int64, member string) error {
+	if _, err := c.Do("ZADD", k, score, member); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) Del(k string) error {
+	if _, err := c.Do("DEL", k); err != nil {
+		return err
+	}
+	return nil
+}
 
 func (c *Client) XConfigSet(configKey, configValue string) error {
 
