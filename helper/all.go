@@ -158,7 +158,10 @@ func storeTopKey(c *redis.Client, data *redisTreeSet) error {
 	iter := data.set.Iterator()
 	for iter.Next() {
 		object := iter.Value().(model.RedisObject)
-		fmt.Printf("key:%s, ttl:%s\n", object.GetKey(), object.GetExpiration().String())
+		exp := object.GetExpiration()
+		if exp != nil {
+			fmt.Printf("key:%s, ttl:%s\n", object.GetKey(), object.GetExpiration().String())
+		}
 		k := &BigKey{
 			DbIndex: object.GetDBIndex(),
 			Key: object.GetKey(),
