@@ -125,7 +125,6 @@ func getKeyPrefix(subKey []string, sep string) string {
 func createKeyTypeCount(data map[string]int64, object model.RedisObject) {
 	keyType := object.GetType()
 	data[keyType] += 1
-	fmt.Printf("key:%s, ttl:%s\n", object.GetKey(), object.GetExpiration().String())
 }
 
 func storeKeyTypeCount(c *redis.Client, data map[string]int64) error {
@@ -159,6 +158,7 @@ func storeTopKey(c *redis.Client, data *redisTreeSet) error {
 	iter := data.set.Iterator()
 	for iter.Next() {
 		object := iter.Value().(model.RedisObject)
+		fmt.Printf("key:%s, ttl:%s\n", object.GetKey(), object.GetExpiration().String())
 		k := &BigKey{
 			DbIndex: object.GetDBIndex(),
 			Key: object.GetKey(),
