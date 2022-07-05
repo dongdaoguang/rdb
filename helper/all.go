@@ -67,11 +67,9 @@ func (p *keyPrefixTreeSet) Append(x *PrefixCounter) {
 		if min.Size < x.Size {
 			p.set.Remove(min)
 			p.set.Add(x)
-			fmt.Printf("rm set size:%d, cap:%d\n", p.set.Size(), p.capacity)
 		}
 	} else {
 		p.set.Add(x)
-		fmt.Printf("add set size:%d, cap:%d\n", p.set.Size(), p.capacity)
 	}
 }
 
@@ -207,7 +205,6 @@ func storeKeyPrefix(c *redis.Client, data map[string]*PrefixCounter, topN int) e
 
 	topList := newKeyPrefixHeap(topN)
 	for _, v := range data {
-		fmt.Printf("------prefix:%s totalSize:%d\n ", v.Prefix, v.Size)
 		topList.Append(v)
 	}
 
@@ -215,7 +212,6 @@ func storeKeyPrefix(c *redis.Client, data map[string]*PrefixCounter, topN int) e
 	for iter.Next() {
 		item := iter.Value().(*PrefixCounter)
 		item.ReadableSize = bytefmt.FormatSize(uint64(item.Size))
-		fmt.Printf("------toplist:%s\n", item.Prefix)
 
 		v, err := base_func.Any2String(item)
 		if err != nil {
