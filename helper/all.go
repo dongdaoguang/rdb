@@ -194,8 +194,7 @@ func storeExpKeyMem(c *redis.Client, data map[int]int64) error {
 }
 
 func createKeyTypeCount(data map[string]int64, object model.RedisObject) {
-	keyType := object.GetType()
-	data[keyType] += 1
+	data[object.GetType()] += 1
 }
 
 func storeKeyTypeCount(c *redis.Client, data map[string]int64) error {
@@ -209,8 +208,7 @@ func storeKeyTypeCount(c *redis.Client, data map[string]int64) error {
 }
 
 func createKeyTypeMem(data map[string]int64, object model.RedisObject) {
-	keyType := object.GetType()
-	data[keyType] += int64(object.GetSize())
+	data[object.GetType()] += int64(object.GetSize())
 }
 
 func storeKeyTypeMem(c *redis.Client, data map[string]int64) error {
@@ -224,16 +222,17 @@ func storeKeyTypeMem(c *redis.Client, data map[string]int64) error {
 }
 
 func storeTopKey(c *redis.Client, data *redisTreeSet) error {
-	ret := &BiggestKeys{}
-	ret.Keys = make([]*BigKey, 0)
+	// 删除旧数据
+	k := "rdb_bk_data_" + c.Addr
+	err := c.Del(k)
+	if err != nil {
+		return err
+	}
+
 	iter := data.set.Iterator()
 	for iter.Next() {
 		object := iter.Value().(model.RedisObject)
-		//exp := object.GetExpiration()
-		//if exp != nil {
-		//	fmt.Printf("key:%s, ttl:%s\n", object.GetKey(), object.GetExpiration().Unix())
-		//}
-		k := &BigKey{
+		bk := &BigKey{
 			DbIndex: object.GetDBIndex(),
 			Key: object.GetKey(),
 			Type: object.GetType(),
@@ -241,15 +240,41 @@ func storeTopKey(c *redis.Client, data *redisTreeSet) error {
 			ReadableSize: bytefmt.FormatSize(uint64(object.GetSize())),
 			ElementCount: object.GetElemCount(),
 		}
-		ret.Keys = append(ret.Keys, k)
-	}
 
-	v, err := base_func.Any2String(ret)
-	if err != nil {
-		return err
+		v, err := base_func.Any2String(bk)
+		if err != nil {
+			return err
+		}
+		err = c.Zadd(k, int64(bk.Size), v)
+		if err != nil {
+			return err
+		}
 	}
-	k := "rdb_bk_data_" + c.Addr
-	return c.Setex(k, v, 2592000) // ttl 30天
+	return nil
+
+
+	//ret := &BiggestKeys{}
+	//ret.Keys = make([]*BigKey, 0)
+	//iter := data.set.Iterator()
+	//for iter.Next() {
+	//	object := iter.Value().(model.RedisObject)
+	//	k := &BigKey{
+	//		DbIndex: object.GetDBIndex(),
+	//		Key: object.GetKey(),
+	//		Type: object.GetType(),
+	//		Size: object.GetSize(),
+	//		ReadableSize: bytefmt.FormatSize(uint64(object.GetSize())),
+	//		ElementCount: object.GetElemCount(),
+	//	}
+	//	ret.Keys = append(ret.Keys, k)
+	//}
+	//
+	//v, err := base_func.Any2String(ret)
+	//if err != nil {
+	//	return err
+	//}
+	//k := "rdb_bk_data_" + c.Addr
+	//return c.Setex(k, v, 2592000) // ttl 30天
 }
 
 func createKeyPrefix(data map[string]*PrefixCounter, sep string, object model.RedisObject) {
