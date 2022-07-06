@@ -14,6 +14,18 @@ import (
 	"time"
 )
 
+const (
+	ExpRange_None 		= 0 // 不过期
+	ExpRange_Stale 		= 1	// 已过期
+	ExpRange_1h 		= 2 // 0-1h
+	ExpRange_3h 		= 3 // 1h-3h
+	ExpRange_12h 		= 4	// 3h-12h
+	ExpRange_24h 		= 5	// 12h-24h
+	ExpRange_2d 		= 6	// 1-2d
+	ExpRange_7d 		= 7	// 3-7d
+	ExpRange_Beyond_7d 	= 8	// >7d
+)
+
 type RdbStatus struct {
 	Code 	int `json:"code"`
 	Msg 	string `json:"msg"`
@@ -29,6 +41,10 @@ type PrefixCounter struct {
 type keyPrefixTreeSet struct {
 	set      *treeset.Set
 	capacity int
+}
+
+type ExpiredKeyCount struct {
+	Category string
 }
 
 func newKeyPrefixHeap(cap int) *keyPrefixTreeSet {
@@ -122,6 +138,61 @@ func getKeyPrefix(subKey []string, sep string) string {
 	return prefix
 }
 
+func getExpRange(object model.RedisObject) int {
+	expAt := object.GetExpiration()
+	if expAt == nil {
+		return ExpRange_None
+	}
+	now := time.Now().Unix()
+
+	ttl := expAt.Unix() - now
+	if ttl < 0 {
+		return ExpRange_Stale
+	} else if ttl < 3600 { // 1h
+		return ExpRange_1h
+	} else if ttl < 3 * 3600 {
+		return ExpRange_3h
+	} else if ttl < 12 * 3600 {
+		return ExpRange_12h
+	} else if ttl < 24 * 3600 {
+		return ExpRange_24h
+	} else if ttl < 2 * 24 * 3600 {
+		return ExpRange_2d
+	} else if ttl < 7 * 24 * 3600 {
+		return ExpRange_7d
+	} else {
+		return ExpRange_Beyond_7d
+	}
+}
+
+func createExpKeyCount(data map[int]int64, object model.RedisObject) {
+	data[getExpRange(object)] += 1
+}
+
+func storeExpKeyCount(c *redis.Client, data map[int]int64) error {
+	v, err := base_func.Any2String(data)
+	if err != nil {
+		return err
+	}
+
+	k := "rdb_exp_key_count_" + c.Addr
+	return c.Setex(k, v, 2592000) // ttl 30天
+}
+
+func createExpKeyMem(data map[int]int64, object model.RedisObject) {
+	data[getExpRange(object)] += int64(object.GetSize())
+}
+
+func storeExpKeyMem(c *redis.Client, data map[int]int64) error {
+	v, err := base_func.Any2String(data)
+	if err != nil {
+		return err
+	}
+
+	k := "rdb_exp_key_mem_" + c.Addr
+	return c.Setex(k, v, 2592000) // ttl 30天
+}
+
 func createKeyTypeCount(data map[string]int64, object model.RedisObject) {
 	keyType := object.GetType()
 	data[keyType] += 1
@@ -158,10 +229,10 @@ func storeTopKey(c *redis.Client, data *redisTreeSet) error {
 	iter := data.set.Iterator()
 	for iter.Next() {
 		object := iter.Value().(model.RedisObject)
-		exp := object.GetExpiration()
-		if exp != nil {
-			fmt.Printf("key:%s, ttl:%s\n", object.GetKey(), object.GetExpiration().String())
-		}
+		//exp := object.GetExpiration()
+		//if exp != nil {
+		//	fmt.Printf("key:%s, ttl:%s\n", object.GetKey(), object.GetExpiration().Unix())
+		//}
 		k := &BigKey{
 			DbIndex: object.GetDBIndex(),
 			Key: object.GetKey(),
@@ -283,12 +354,16 @@ func CreateAll(rdbFilename string, topN int, separators []string, addr, auth str
 		}
 	}
 
+	expKeyCount := make(map[int]int64)					// key过期时间分布（数量）
+	expKeyMem := make(map[int]int64)					// key过期时间分布（内存）
 	keyCount := make(map[string]int64) 					// 不同类型key数量
 	keyMemory := make(map[string]int64) 				// 不同类型key内存总量
 	topList := newTopKeyHeap(topN) 						// 大key
 	keyPrefixMap := make(map[string]*PrefixCounter) 	// 前缀统计
 
 	err = dec.Parse(func(object model.RedisObject) bool {
+		createExpKeyCount(expKeyCount, object)
+		createExpKeyMem(expKeyMem, object)
 		createKeyTypeCount(keyCount, object)
 		createKeyTypeMem(keyMemory, object)
 		topList.Append(object)
@@ -308,6 +383,20 @@ func CreateAll(rdbFilename string, topN int, separators []string, addr, auth str
 	}
 
 	// 写redis
+	err = storeExpKeyCount(c, expKeyCount)
+	if err != nil {
+		status.Code = -1
+		status.Msg = err.Error()
+		return storeStatusToRedis(c, status)
+	}
+
+	err = storeExpKeyMem(c, expKeyMem)
+	if err != nil {
+		status.Code = -1
+		status.Msg = err.Error()
+		return storeStatusToRedis(c, status)
+	}
+
 	err = storeKeyTypeCount(c, keyCount)
 	if err != nil {
 		status.Code = -1
