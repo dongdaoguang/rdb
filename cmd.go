@@ -58,6 +58,7 @@ func main() {
 	var regexExpr string
 	var redis string
 	var a string
+	var rdbAddr string
 	flagSet.StringVar(&cmd, "c", "", "command for rdb: json")
 	flagSet.StringVar(&output, "o", "", "output file path")
 	flagSet.IntVar(&n, "n", 0, "")
@@ -66,6 +67,7 @@ func main() {
 	flagSet.StringVar(&regexExpr, "regex", "", "regex expression")
 	flagSet.StringVar(&redis, "redis", "", "save result to redis")
 	flagSet.StringVar(&a, "a", "", "redis auth")
+	flagSet.StringVar(&rdbAddr, "rdbAddr", "", "rdb redis addr")
 	_ = flagSet.Parse(os.Args[1:]) // ExitOnError
 	src := flagSet.Arg(0)
 
@@ -92,28 +94,24 @@ func main() {
 	case "aof":
 		err = helper.ToAOF(src, output, options)
 	case "bigkey":
-		if redis != "" {
-			err = helper.FindBiggestKeysToRedis(src, n, os.Stdout, redis, a, options)
+		if output == "" {
+			err = helper.FindBiggestKeys(src, n, os.Stdout, options...)
 		} else {
-			if output == "" {
-				err = helper.FindBiggestKeys(src, n, os.Stdout, options...)
-			} else {
-				var outputFile *os.File
-				outputFile, err = os.Create(output)
-				if err != nil {
-					fmt.Printf("open output faild: %v", err)
-				}
-				defer func() {
-					_ = outputFile.Close()
-				}()
-				err = helper.FindBiggestKeys(src, n, outputFile, options...)
+			var outputFile *os.File
+			outputFile, err = os.Create(output)
+			if err != nil {
+				fmt.Printf("open output faild: %v", err)
 			}
+			defer func() {
+				_ = outputFile.Close()
+			}()
+			err = helper.FindBiggestKeys(src, n, outputFile, options...)
 		}
 	case "flamegraph":
 		_, err = helper.FlameGraph(src, port, seps, options...)
 		<-make(chan struct{})
 	case "all":
-		err = helper.CreateAll(src, n, seps, redis, a, options)
+		err = helper.CreateAll(src, n, seps, redis, a, rdbAddr, options)
 	default:
 		println("unknown command")
 		return

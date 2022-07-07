@@ -8,11 +8,8 @@ import (
 	"github.com/hdt3213/rdb/bytefmt"
 	"github.com/hdt3213/rdb/core"
 	"github.com/hdt3213/rdb/model"
-	"github.com/hdt3213/rdb/utils/base_func"
-	"github.com/hdt3213/rdb/utils/redis"
 	"os"
 	"strconv"
-	"time"
 )
 
 type redisTreeSet struct {
@@ -127,109 +124,3 @@ func FindBiggestKeys(rdbFilename string, topN int, output *os.File, options ...i
 	}
 	return nil
 }
-
-func getBKStatusKeyName(addr string) string {
-	return "rdb_bk_status_" + addr
-}
-
-func getBigKeyName(addr string) string {
-	return "rdb_bk_data_" + addr
-}
-
-func storeKeysToRedis(c *redis.Client, keys *BiggestKeys) error {
-	v, err := base_func.Any2String(keys)
-	if err != nil {
-		return err
-	}
-	return c.Setex(getBigKeyName(c.Addr), v, 2592000) // ttl 30天
-}
-
-func FindBiggestKeysToRedis(rdbFilename string, topN int, output *os.File, addr, auth string, options ...interface{}) error {
-	if addr == "" {
-		return errors.New("redis addr can not empty")
-	}
-	c, err := redis.NewClient(addr, auth, time.Millisecond * 100)
-	if err != nil {
-		return errors.New(err.Error())
-	}
-
-	status := &RdbStatus{}
-	if rdbFilename == "" {
-		status.Code = -1
-		status.Msg = "src file path is required"
-		return storeStatusToRedis(c, status)
-	}
-	if topN <= 0 {
-		status.Code = -1
-		status.Msg = "n must greater than 0"
-		return storeStatusToRedis(c, status)
-	}
-
-	// 扫描rdb中
-	status.Code = 1
-	status.Msg = "parser rdb file..."
-	_ = storeStatusToRedis(c, status)
-
-	rdbFile, err := os.Open(rdbFilename)
-	if err != nil {
-		status.Code = -1
-		status.Msg = fmt.Sprintf("open rdb %s failed, %v", rdbFilename, err)
-		return storeStatusToRedis(c, status)
-	}
-	defer func() {
-		_ = rdbFile.Close()
-	}()
-	var regexOpt RegexOption
-	for _, opt := range options {
-		switch o := opt.(type) {
-		case RegexOption:
-			regexOpt = o
-		}
-	}
-	var dec decoder = core.NewDecoder(rdbFile)
-	if regexOpt != nil {
-		dec, err = regexWrapper(dec, *regexOpt)
-		if err != nil {
-			return err
-		}
-	}
-	topList := newRedisHeap(topN)
-	err = dec.Parse(func(object model.RedisObject) bool {
-		topList.Append(object)
-		return true
-	})
-	if err != nil {
-		status.Code = -1
-		status.Msg = err.Error()
-		return storeStatusToRedis(c, status)
-	}
-
-	data := &BiggestKeys{}
-	data.Keys = make([]*BigKey, 0)
-	iter := topList.set.Iterator()
-	for iter.Next() {
-		object := iter.Value().(model.RedisObject)
-		k := &BigKey{
-			DbIndex: object.GetDBIndex(),
-			Key: object.GetKey(),
-			Type: object.GetType(),
-			Size: object.GetSize(),
-			ReadableSize: bytefmt.FormatSize(uint64(object.GetSize())),
-			ElementCount: object.GetElemCount(),
-		}
-		data.Keys = append(data.Keys, k)
-	}
-
-	err = storeKeysToRedis(c, data)
-	if err != nil {
-		status.Code = -1
-		status.Msg = err.Error()
-		return storeStatusToRedis(c, status)
-	}
-
-	status.Code = 0
-	status.Msg = "ok"
-	return storeStatusToRedis(c, status)
-}
-
-

@@ -102,12 +102,12 @@ type BiggestKeys struct {
 	Keys []*BigKey `json:"keys"`
 }
 
-func storeStatusToRedis(c *redis.Client, status *RdbStatus) error {
+func storeStatusToRedis(c *redis.Client, status *RdbStatus, rdbRedisAddr string) error {
 	v, err := base_func.Any2String(status)
 	if err != nil {
 		return err
 	}
-	k := "rdb_status_" + c.Addr
+	k := "rdb_status_" + rdbRedisAddr
 	return c.Setex(k, v, 2592000)
 }
 
@@ -169,13 +169,13 @@ func createExpKeyCount(data map[int]int64, object model.RedisObject) {
 	data[getExpRange(object)] += 1
 }
 
-func storeExpKeyCount(c *redis.Client, data map[int]int64) error {
+func storeExpKeyCount(c *redis.Client, data map[int]int64, rdbRedisAddr string) error {
 	v, err := base_func.Any2String(data)
 	if err != nil {
 		return err
 	}
 
-	k := "rdb_exp_key_count_" + c.Addr
+	k := "rdb_exp_key_count_" + rdbRedisAddr
 	return c.Setex(k, v, 2592000) // ttl 30天
 }
 
@@ -183,13 +183,13 @@ func createExpKeyMem(data map[int]int64, object model.RedisObject) {
 	data[getExpRange(object)] += int64(object.GetSize())
 }
 
-func storeExpKeyMem(c *redis.Client, data map[int]int64) error {
+func storeExpKeyMem(c *redis.Client, data map[int]int64, rdbRedisAddr string) error {
 	v, err := base_func.Any2String(data)
 	if err != nil {
 		return err
 	}
 
-	k := "rdb_exp_key_mem_" + c.Addr
+	k := "rdb_exp_key_mem_" + rdbRedisAddr
 	return c.Setex(k, v, 2592000) // ttl 30天
 }
 
@@ -197,13 +197,13 @@ func createKeyTypeCount(data map[string]int64, object model.RedisObject) {
 	data[object.GetType()] += 1
 }
 
-func storeKeyTypeCount(c *redis.Client, data map[string]int64) error {
+func storeKeyTypeCount(c *redis.Client, data map[string]int64, rdbRedisAddr string) error {
 	v, err := base_func.Any2String(data)
 	if err != nil {
 		return err
 	}
 
-	k := "rdb_key_count_" + c.Addr
+	k := "rdb_key_count_" + rdbRedisAddr
 	return c.Setex(k, v, 2592000) // ttl 30天
 }
 
@@ -211,19 +211,19 @@ func createKeyTypeMem(data map[string]int64, object model.RedisObject) {
 	data[object.GetType()] += int64(object.GetSize())
 }
 
-func storeKeyTypeMem(c *redis.Client, data map[string]int64) error {
+func storeKeyTypeMem(c *redis.Client, data map[string]int64, rdbRedisAddr string) error {
 	v, err := base_func.Any2String(data)
 	if err != nil {
 		return err
 	}
 
-	k := "rdb_key_Mem_" + c.Addr
+	k := "rdb_key_Mem_" + rdbRedisAddr
 	return c.Setex(k, v, 2592000) // ttl 30天
 }
 
-func storeTopKey(c *redis.Client, data *redisTreeSet) error {
+func storeTopKey(c *redis.Client, data *redisTreeSet, rdbRedisAddr string) error {
 	// 删除旧数据
-	k := "rdb_bk_data_" + c.Addr
+	k := "rdb_bk_data_" + rdbRedisAddr
 	err := c.Del(k)
 	if err != nil {
 		return err
@@ -251,30 +251,6 @@ func storeTopKey(c *redis.Client, data *redisTreeSet) error {
 		}
 	}
 	return nil
-
-
-	//ret := &BiggestKeys{}
-	//ret.Keys = make([]*BigKey, 0)
-	//iter := data.set.Iterator()
-	//for iter.Next() {
-	//	object := iter.Value().(model.RedisObject)
-	//	k := &BigKey{
-	//		DbIndex: object.GetDBIndex(),
-	//		Key: object.GetKey(),
-	//		Type: object.GetType(),
-	//		Size: object.GetSize(),
-	//		ReadableSize: bytefmt.FormatSize(uint64(object.GetSize())),
-	//		ElementCount: object.GetElemCount(),
-	//	}
-	//	ret.Keys = append(ret.Keys, k)
-	//}
-	//
-	//v, err := base_func.Any2String(ret)
-	//if err != nil {
-	//	return err
-	//}
-	//k := "rdb_bk_data_" + c.Addr
-	//return c.Setex(k, v, 2592000) // ttl 30天
 }
 
 func createKeyPrefix(data map[string]*PrefixCounter, sep string, object model.RedisObject) {
@@ -291,13 +267,13 @@ func createKeyPrefix(data map[string]*PrefixCounter, sep string, object model.Re
 	}
 }
 
-func storeKeyPrefix(c *redis.Client, data map[string]*PrefixCounter, topN int) error {
+func storeKeyPrefix(c *redis.Client, data map[string]*PrefixCounter, topN int, rdbRedisAddr string) error {
 	if len(data) == 0 {
 		return nil
 	}
 
 	// 删除旧数据
-	k := "rdb_prefix_data_" + c.Addr
+	k := "rdb_prefix_data_" + rdbRedisAddr
 	err := c.Del(k)
 	if err != nil {
 		return err
@@ -325,7 +301,7 @@ func storeKeyPrefix(c *redis.Client, data map[string]*PrefixCounter, topN int) e
 	return nil
 }
 
-func CreateAll(rdbFilename string, topN int, separators []string, addr, auth string, options ...interface{}) error {
+func CreateAll(rdbFilename string, topN int, separators []string, addr, auth string, rdbRedisAddr string, options ...interface{}) error {
 	if addr == "" {
 		return errors.New("redis addr can not empty")
 	}
@@ -338,12 +314,17 @@ func CreateAll(rdbFilename string, topN int, separators []string, addr, auth str
 	if rdbFilename == "" {
 		status.Code = -1
 		status.Msg = "src file path is required"
-		return storeStatusToRedis(c, status)
+		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 	if len(separators) != 1 {
 		status.Code = -1
 		status.Msg = "only support one separators"
-		return storeStatusToRedis(c, status)
+		return storeStatusToRedis(c, status, rdbRedisAddr)
+	}
+	if rdbRedisAddr == "" {
+		status.Code = -1
+		status.Msg = "dump file name can not empty"
+		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 
 	if topN <= 0 || topN > 10000{
@@ -353,13 +334,13 @@ func CreateAll(rdbFilename string, topN int, separators []string, addr, auth str
 	// 扫描rdb中
 	status.Code = 1
 	status.Msg = "parser rdb file..."
-	_ = storeStatusToRedis(c, status)
+	_ = storeStatusToRedis(c, status, rdbRedisAddr)
 
 	rdbFile, err := os.Open(rdbFilename)
 	if err != nil {
 		status.Code = -1
 		status.Msg = fmt.Sprintf("open rdb %s failed, %v", rdbFilename, err)
-		return storeStatusToRedis(c, status)
+		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 	defer func() {
 		_ = rdbFile.Close()
@@ -398,7 +379,7 @@ func CreateAll(rdbFilename string, topN int, separators []string, addr, auth str
 	if err != nil {
 		status.Code = -1
 		status.Msg = err.Error()
-		return storeStatusToRedis(c, status)
+		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 
 	// refresh client
@@ -408,49 +389,49 @@ func CreateAll(rdbFilename string, topN int, separators []string, addr, auth str
 	}
 
 	// 写redis
-	err = storeExpKeyCount(c, expKeyCount)
+	err = storeExpKeyCount(c, expKeyCount, rdbRedisAddr)
 	if err != nil {
 		status.Code = -1
 		status.Msg = err.Error()
-		return storeStatusToRedis(c, status)
+		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 
-	err = storeExpKeyMem(c, expKeyMem)
+	err = storeExpKeyMem(c, expKeyMem, rdbRedisAddr)
 	if err != nil {
 		status.Code = -1
 		status.Msg = err.Error()
-		return storeStatusToRedis(c, status)
+		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 
-	err = storeKeyTypeCount(c, keyCount)
+	err = storeKeyTypeCount(c, keyCount, rdbRedisAddr)
 	if err != nil {
 		status.Code = -1
 		status.Msg = err.Error()
-		return storeStatusToRedis(c, status)
+		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 
-	err = storeKeyTypeMem(c, keyMemory)
+	err = storeKeyTypeMem(c, keyMemory, rdbRedisAddr)
 	if err != nil {
 		status.Code = -1
 		status.Msg = err.Error()
-		return storeStatusToRedis(c, status)
+		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 
-	err = storeTopKey(c, topList)
+	err = storeTopKey(c, topList, rdbRedisAddr)
 	if err != nil {
 		status.Code = -1
 		status.Msg = err.Error()
-		return storeStatusToRedis(c, status)
+		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 
-	err = storeKeyPrefix(c, keyPrefixMap, topN)
+	err = storeKeyPrefix(c, keyPrefixMap, topN, rdbRedisAddr)
 	if err != nil {
 		status.Code = -1
 		status.Msg = err.Error()
-		return storeStatusToRedis(c, status)
+		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 
 	status.Code = 0
 	status.Msg = "ok"
-	return storeStatusToRedis(c, status)
+	return storeStatusToRedis(c, status, rdbRedisAddr)
 }
