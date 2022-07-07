@@ -29,6 +29,15 @@ const (
 type RdbStatus struct {
 	Code 	int `json:"code"`
 	Msg 	string `json:"msg"`
+	TimeSec int64 `json:"time_sec"`
+}
+
+func newRdbStatus(code int, msg string) *RdbStatus {
+	return &RdbStatus{
+		Code: code,
+		Msg: msg,
+		TimeSec: time.Now().Unix(),
+	}
 }
 
 type PrefixCounter struct {
@@ -310,20 +319,16 @@ func CreateAll(rdbFilename string, topN int, separators []string, addr, auth str
 		return errors.New(err.Error())
 	}
 
-	status := &RdbStatus{}
 	if rdbFilename == "" {
-		status.Code = -1
-		status.Msg = "src file path is required"
+		status := newRdbStatus(-1, "src file path is required")
 		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 	if len(separators) != 1 {
-		status.Code = -1
-		status.Msg = "only support one separators"
+		status := newRdbStatus(-1, "only support one separators")
 		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 	if rdbRedisAddr == "" {
-		status.Code = -1
-		status.Msg = "dump file name can not empty"
+		status := newRdbStatus(-1, "dump file name can not empty")
 		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 
@@ -332,14 +337,13 @@ func CreateAll(rdbFilename string, topN int, separators []string, addr, auth str
 	}
 
 	// 扫描rdb中
-	status.Code = 1
-	status.Msg = "parser rdb file..."
+	status := newRdbStatus(1, "scan rdb file...")
 	_ = storeStatusToRedis(c, status, rdbRedisAddr)
 
 	rdbFile, err := os.Open(rdbFilename)
 	if err != nil {
-		status.Code = -1
-		status.Msg = fmt.Sprintf("open rdb %s failed, %v", rdbFilename, err)
+		msg := fmt.Sprintf("open rdb %s failed, %v", rdbFilename, err)
+		status = newRdbStatus(-1, msg)
 		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 	defer func() {
@@ -377,8 +381,7 @@ func CreateAll(rdbFilename string, topN int, separators []string, addr, auth str
 		return true
 	})
 	if err != nil {
-		status.Code = -1
-		status.Msg = err.Error()
+		status = newRdbStatus(-1, err.Error())
 		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 
@@ -391,47 +394,40 @@ func CreateAll(rdbFilename string, topN int, separators []string, addr, auth str
 	// 写redis
 	err = storeExpKeyCount(c, expKeyCount, rdbRedisAddr)
 	if err != nil {
-		status.Code = -1
-		status.Msg = err.Error()
+		status = newRdbStatus(-1, err.Error())
 		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 
 	err = storeExpKeyMem(c, expKeyMem, rdbRedisAddr)
 	if err != nil {
-		status.Code = -1
-		status.Msg = err.Error()
+		status = newRdbStatus(-1, err.Error())
 		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 
 	err = storeKeyTypeCount(c, keyCount, rdbRedisAddr)
 	if err != nil {
-		status.Code = -1
-		status.Msg = err.Error()
+		status = newRdbStatus(-1, err.Error())
 		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 
 	err = storeKeyTypeMem(c, keyMemory, rdbRedisAddr)
 	if err != nil {
-		status.Code = -1
-		status.Msg = err.Error()
+		status = newRdbStatus(-1, err.Error())
 		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 
 	err = storeTopKey(c, topList, rdbRedisAddr)
 	if err != nil {
-		status.Code = -1
-		status.Msg = err.Error()
+		status = newRdbStatus(-1, err.Error())
 		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 
 	err = storeKeyPrefix(c, keyPrefixMap, topN, rdbRedisAddr)
 	if err != nil {
-		status.Code = -1
-		status.Msg = err.Error()
+		status = newRdbStatus(-1, err.Error())
 		return storeStatusToRedis(c, status, rdbRedisAddr)
 	}
 
-	status.Code = 0
-	status.Msg = "ok"
+	status = newRdbStatus(0, "ok")
 	return storeStatusToRedis(c, status, rdbRedisAddr)
 }
